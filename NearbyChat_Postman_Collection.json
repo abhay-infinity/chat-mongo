@@ -1,0 +1,1573 @@
+{
+    "info": {
+        "_postman_id": "nearby-chat-api-collection",
+        "name": "Nearby Chat API - Complete Collection",
+        "description": "Complete API collection for Nearby Chat application with all endpoints including Authentication, Users, Chats, Messages, Groups, and Coins management.",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+        "_exporter_id": "nearby-chat-v1"
+    },
+    "item": [
+        {
+            "name": "Authentication",
+            "item": [
+                {
+                    "name": "Guest Login",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"deviceId\": \"device-12345-abcde\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/nearbychatapi/v1/auth/guest-login",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "nearbychatapi",
+                                "v1",
+                                "auth",
+                                "guest-login"
+                            ]
+                        },
+                        "description": "Silent login for guest users. Creates a temporary account with 50 coins. No registration needed."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Register User",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}",
+                                "description": "Optional - for upgrading guest account"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"username\": \"john_doe\",\n  \"email\": \"john@example.com\",\n  \"phone\": \"+1234567890\",\n  \"password\": \"password123\",\n  \"gender\": \"male\",\n  \"age\": 25,\n  \"referralCode\": \"ABC123\",\n  \"upgradeFromGuest\": false\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/nearbychatapi/v1/auth/register",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "nearbychatapi",
+                                "v1",
+                                "auth",
+                                "register"
+                            ]
+                        },
+                        "description": "Register a new user or upgrade from guest account. Receives 150 welcome coins. If referralCode is provided, referrer gets 25 coins."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Login",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"identifier\": \"john@example.com\",\n  \"password\": \"password123\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/nearbychatapi/v1/auth/login",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "nearbychatapi",
+                                "v1",
+                                "auth",
+                                "login"
+                            ]
+                        },
+                        "description": "Login with email, phone, or username and password."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Send OTP",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"identifier\": \"john@example.com\",\n  \"type\": \"email\",\n  \"purpose\": \"registration\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/nearbychatapi/v1/auth/send-otp",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "nearbychatapi",
+                                "v1",
+                                "auth",
+                                "send-otp"
+                            ]
+                        },
+                        "description": "Send OTP for verification. Type: 'email' or 'phone'. Purpose: 'registration', 'login', or 'reset_password'."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Verify OTP",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"identifier\": \"john@example.com\",\n  \"otp\": \"123456\",\n  \"type\": \"email\",\n  \"purpose\": \"registration\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/nearbychatapi/v1/auth/verify-otp",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "nearbychatapi",
+                                "v1",
+                                "auth",
+                                "verify-otp"
+                            ]
+                        },
+                        "description": "Verify OTP sent to email or phone. Maximum 5 attempts allowed."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Get Current User",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/nearbychatapi/v1/auth/me",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "nearbychatapi",
+                                "v1",
+                                "auth",
+                                "me"
+                            ]
+                        },
+                        "description": "Get current authenticated user details."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Logout",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/nearbychatapi/v1/auth/logout",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "nearbychatapi",
+                                "v1",
+                                "auth",
+                                "logout"
+                            ]
+                        },
+                        "description": "Logout current user and clear cache."
+                    },
+                    "response": []
+                }
+            ],
+            "description": "Authentication endpoints for guest login, registration, login, OTP verification, and logout."
+        },
+        {
+            "name": "Users",
+            "item": [
+                {
+                    "name": "Get User Profile",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/nearbychatapi/v1/users/profile/:userId",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "nearbychatapi",
+                                "v1",
+                                "users",
+                                "profile",
+                                ":userId"
+                            ],
+                            "variable": [
+                                {
+                                    "key": "userId",
+                                    "value": "60d5ec49f1b2c72b8c8e4f1a"
+                                }
+                            ]
+                        },
+                        "description": "Get profile details of a specific user by userId."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Update Profile",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"username\": \"john_updated\",\n  \"bio\": \"Love to chat and meet new people!\",\n  \"avatar\": \"/uploads/avatars/avatar.jpg\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/nearbychatapi/v1/users/profile",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "nearbychatapi",
+                                "v1",
+                                "users",
+                                "profile"
+                            ]
+                        },
+                        "description": "Update current user's profile (username, bio, avatar)."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Update Location",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"latitude\": 37.7749,\n  \"longitude\": -122.4194,\n  \"address\": \"San Francisco, CA\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/nearbychatapi/v1/users/location",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "nearbychatapi",
+                                "v1",
+                                "users",
+                                "location"
+                            ]
+                        },
+                        "description": "Update user's current location. Cached in Redis for faster nearby searches."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Get Nearby Users",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/nearbychatapi/v1/users/nearby?latitude=37.7749&longitude=-122.4194&radius=5000",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "nearbychatapi",
+                                "v1",
+                                "users",
+                                "nearby"
+                            ],
+                            "query": [
+                                {
+                                    "key": "latitude",
+                                    "value": "37.7749"
+                                },
+                                {
+                                    "key": "longitude",
+                                    "value": "-122.4194"
+                                },
+                                {
+                                    "key": "radius",
+                                    "value": "5000",
+                                    "description": "Radius in meters (100-50000)"
+                                }
+                            ]
+                        },
+                        "description": "Find nearby users within specified radius (in meters). Maximum 50 users returned."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Search Users",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/nearbychatapi/v1/users/search?query=john",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "nearbychatapi",
+                                "v1",
+                                "users",
+                                "search"
+                            ],
+                            "query": [
+                                {
+                                    "key": "query",
+                                    "value": "john",
+                                    "description": "Search by username or email (min 2 characters)"
+                                }
+                            ]
+                        },
+                        "description": "Search users by username or email. Returns up to 20 results."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Update Settings",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"settings\": {\n    \"allowNearbyUsers\": true,\n    \"notifications\": true,\n    \"soundEnabled\": true,\n    \"theme\": \"dark\"\n  }\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/nearbychatapi/v1/users/settings",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "nearbychatapi",
+                                "v1",
+                                "users",
+                                "settings"
+                            ]
+                        },
+                        "description": "Update user settings and preferences."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Block User",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/nearbychatapi/v1/users/block/:userId",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "nearbychatapi",
+                                "v1",
+                                "users",
+                                "block",
+                                ":userId"
+                            ],
+                            "variable": [
+                                {
+                                    "key": "userId",
+                                    "value": "60d5ec49f1b2c72b8c8e4f1a"
+                                }
+                            ]
+                        },
+                        "description": "Block a specific user."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Unblock User",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/nearbychatapi/v1/users/block/:userId",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "nearbychatapi",
+                                "v1",
+                                "users",
+                                "block",
+                                ":userId"
+                            ],
+                            "variable": [
+                                {
+                                    "key": "userId",
+                                    "value": "60d5ec49f1b2c72b8c8e4f1a"
+                                }
+                            ]
+                        },
+                        "description": "Unblock a previously blocked user."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Upload Avatar",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}"
+                            }
+                        ],
+                        "body": {
+                            "mode": "formdata",
+                            "formdata": [
+                                {
+                                    "key": "avatar",
+                                    "type": "file",
+                                    "src": "/path/to/avatar.jpg"
+                                }
+                            ]
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/nearbychatapi/v1/users/avatar",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "nearbychatapi",
+                                "v1",
+                                "users",
+                                "avatar"
+                            ]
+                        },
+                        "description": "Upload user avatar image. Accepts image files."
+                    },
+                    "response": []
+                }
+            ],
+            "description": "User management endpoints for profiles, location, search, settings, and blocking."
+        },
+        {
+            "name": "Chats",
+            "item": [
+                {
+                    "name": "Get All Chats",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/nearbychatapi/v1/chats?page=1&limit=20",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "nearbychatapi",
+                                "v1",
+                                "chats"
+                            ],
+                            "query": [
+                                {
+                                    "key": "page",
+                                    "value": "1"
+                                },
+                                {
+                                    "key": "limit",
+                                    "value": "20"
+                                }
+                            ]
+                        },
+                        "description": "Get all active chats for the current user with pagination."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Get Chat by ID",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/nearbychatapi/v1/chats/:chatId",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "nearbychatapi",
+                                "v1",
+                                "chats",
+                                ":chatId"
+                            ],
+                            "variable": [
+                                {
+                                    "key": "chatId",
+                                    "value": "60d5ec49f1b2c72b8c8e4f1a"
+                                }
+                            ]
+                        },
+                        "description": "Get details of a specific chat by chatId."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Get or Create Private Chat",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/nearbychatapi/v1/chats/private/:userId",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "nearbychatapi",
+                                "v1",
+                                "chats",
+                                "private",
+                                ":userId"
+                            ],
+                            "variable": [
+                                {
+                                    "key": "userId",
+                                    "value": "60d5ec49f1b2c72b8c8e4f1a"
+                                }
+                            ]
+                        },
+                        "description": "Get existing private chat with a user or create a new one."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Initiate Send (Random Chat)",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"message\": \"Hey! Want to chat?\",\n  \"preferences\": {\n    \"gender\": \"any\",\n    \"ageRange\": \"any\"\n  },\n  \"location\": {\n    \"type\": \"Point\",\n    \"coordinates\": [-122.4194, 37.7749]\n  }\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/nearbychatapi/v1/chats/initiate-send",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "nearbychatapi",
+                                "v1",
+                                "chats",
+                                "initiate-send"
+                            ]
+                        },
+                        "description": "Initiate anonymous random chat request. Costs 10 coins (15 with filters). Auto-matches if compatible user found in pool."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Get Active Pool",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/nearbychatapi/v1/chats/pool",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "nearbychatapi",
+                                "v1",
+                                "chats",
+                                "pool"
+                            ]
+                        },
+                        "description": "Get all active chat requests in the pool (for map view). Excludes own requests."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Accept Send Request",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/nearbychatapi/v1/chats/accept-send/:poolId",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "nearbychatapi",
+                                "v1",
+                                "chats",
+                                "accept-send",
+                                ":poolId"
+                            ],
+                            "variable": [
+                                {
+                                    "key": "poolId",
+                                    "value": "60d5ec49f1b2c72b8c8e4f1a"
+                                }
+                            ]
+                        },
+                        "description": "Accept a chat request from the pool and start anonymous timed chat."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Extend Chat Duration",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"hours\": 24\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/nearbychatapi/v1/chats/extend-chat/:chatId",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "nearbychatapi",
+                                "v1",
+                                "chats",
+                                "extend-chat",
+                                ":chatId"
+                            ],
+                            "variable": [
+                                {
+                                    "key": "chatId",
+                                    "value": "60d5ec49f1b2c72b8c8e4f1a"
+                                }
+                            ]
+                        },
+                        "description": "Extend random chat duration. 24 hours = 50 coins, 48 hours = 90 coins."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Delete Chat",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/nearbychatapi/v1/chats/:chatId",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "nearbychatapi",
+                                "v1",
+                                "chats",
+                                ":chatId"
+                            ],
+                            "variable": [
+                                {
+                                    "key": "chatId",
+                                    "value": "60d5ec49f1b2c72b8c8e4f1a"
+                                }
+                            ]
+                        },
+                        "description": "Delete a chat. For groups, only admin can delete."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Toggle Mute Chat",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"mute\": true\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/nearbychatapi/v1/chats/:chatId/mute",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "nearbychatapi",
+                                "v1",
+                                "chats",
+                                ":chatId",
+                                "mute"
+                            ],
+                            "variable": [
+                                {
+                                    "key": "chatId",
+                                    "value": "60d5ec49f1b2c72b8c8e4f1a"
+                                }
+                            ]
+                        },
+                        "description": "Mute or unmute a chat."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Clear Unread Count",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/nearbychatapi/v1/chats/:chatId/clear-unread",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "nearbychatapi",
+                                "v1",
+                                "chats",
+                                ":chatId",
+                                "clear-unread"
+                            ],
+                            "variable": [
+                                {
+                                    "key": "chatId",
+                                    "value": "60d5ec49f1b2c72b8c8e4f1a"
+                                }
+                            ]
+                        },
+                        "description": "Clear unread message count for a chat."
+                    },
+                    "response": []
+                }
+            ],
+            "description": "Chat management endpoints for private chats, random chats, and chat pool."
+        },
+        {
+            "name": "Messages",
+            "item": [
+                {
+                    "name": "Get Messages",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/nearbychatapi/v1/messages/:chatId?page=1&limit=50",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "nearbychatapi",
+                                "v1",
+                                "messages",
+                                ":chatId"
+                            ],
+                            "query": [
+                                {
+                                    "key": "page",
+                                    "value": "1"
+                                },
+                                {
+                                    "key": "limit",
+                                    "value": "50"
+                                }
+                            ],
+                            "variable": [
+                                {
+                                    "key": "chatId",
+                                    "value": "60d5ec49f1b2c72b8c8e4f1a"
+                                }
+                            ]
+                        },
+                        "description": "Get all messages for a specific chat with pagination."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Send Message",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"chatId\": \"60d5ec49f1b2c72b8c8e4f1a\",\n  \"content\": \"Hello! How are you?\",\n  \"type\": \"text\",\n  \"replyTo\": null\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/nearbychatapi/v1/messages",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "nearbychatapi",
+                                "v1",
+                                "messages"
+                            ]
+                        },
+                        "description": "Send a text message. Type can be: 'text', 'image', 'video', 'audio', 'file', 'location'. Note: Real-time messaging handled via Socket.IO."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Upload Media Message",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}"
+                            }
+                        ],
+                        "body": {
+                            "mode": "formdata",
+                            "formdata": [
+                                {
+                                    "key": "media",
+                                    "type": "file",
+                                    "src": "/path/to/media.jpg"
+                                },
+                                {
+                                    "key": "chatId",
+                                    "value": "60d5ec49f1b2c72b8c8e4f1a",
+                                    "type": "text"
+                                },
+                                {
+                                    "key": "type",
+                                    "value": "image",
+                                    "type": "text"
+                                },
+                                {
+                                    "key": "caption",
+                                    "value": "Check this out!",
+                                    "type": "text"
+                                }
+                            ]
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/nearbychatapi/v1/messages/upload",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "nearbychatapi",
+                                "v1",
+                                "messages",
+                                "upload"
+                            ]
+                        },
+                        "description": "Upload and send media message (image, video, audio, file)."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Delete Message",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"deleteForEveryone\": false\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/nearbychatapi/v1/messages/:messageId",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "nearbychatapi",
+                                "v1",
+                                "messages",
+                                ":messageId"
+                            ],
+                            "variable": [
+                                {
+                                    "key": "messageId",
+                                    "value": "60d5ec49f1b2c72b8c8e4f1a"
+                                }
+                            ]
+                        },
+                        "description": "Delete a message. Set deleteForEveryone=true to delete for all (only sender can do this)."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Mark Messages as Read",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"messageIds\": [\n    \"60d5ec49f1b2c72b8c8e4f1a\",\n    \"60d5ec49f1b2c72b8c8e4f1b\"\n  ]\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/nearbychatapi/v1/messages/:chatId/read",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "nearbychatapi",
+                                "v1",
+                                "messages",
+                                ":chatId",
+                                "read"
+                            ],
+                            "variable": [
+                                {
+                                    "key": "chatId",
+                                    "value": "60d5ec49f1b2c72b8c8e4f1a"
+                                }
+                            ]
+                        },
+                        "description": "Mark multiple messages as read."
+                    },
+                    "response": []
+                }
+            ],
+            "description": "Message endpoints for sending, receiving, and managing messages."
+        },
+        {
+            "name": "Groups",
+            "item": [
+                {
+                    "name": "Create Group",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"groupName\": \"My Awesome Group\",\n  \"participants\": [\n    \"60d5ec49f1b2c72b8c8e4f1a\",\n    \"60d5ec49f1b2c72b8c8e4f1b\"\n  ],\n  \"groupAvatar\": \"\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/nearbychatapi/v1/groups",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "nearbychatapi",
+                                "v1",
+                                "groups"
+                            ]
+                        },
+                        "description": "Create a new group chat. Requires at least 2 participants. Creator becomes admin."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Update Group",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"groupName\": \"Updated Group Name\",\n  \"groupAvatar\": \"/uploads/groups/avatar.jpg\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/nearbychatapi/v1/groups/:groupId",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "nearbychatapi",
+                                "v1",
+                                "groups",
+                                ":groupId"
+                            ],
+                            "variable": [
+                                {
+                                    "key": "groupId",
+                                    "value": "60d5ec49f1b2c72b8c8e4f1a"
+                                }
+                            ]
+                        },
+                        "description": "Update group name or avatar. Only admin can update."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Add Members",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"userIds\": [\n    \"60d5ec49f1b2c72b8c8e4f1c\",\n    \"60d5ec49f1b2c72b8c8e4f1d\"\n  ]\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/nearbychatapi/v1/groups/:groupId/members",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "nearbychatapi",
+                                "v1",
+                                "groups",
+                                ":groupId",
+                                "members"
+                            ],
+                            "variable": [
+                                {
+                                    "key": "groupId",
+                                    "value": "60d5ec49f1b2c72b8c8e4f1a"
+                                }
+                            ]
+                        },
+                        "description": "Add new members to group. Only admin can add members."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Remove Member",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/nearbychatapi/v1/groups/:groupId/members/:userId",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "nearbychatapi",
+                                "v1",
+                                "groups",
+                                ":groupId",
+                                "members",
+                                ":userId"
+                            ],
+                            "variable": [
+                                {
+                                    "key": "groupId",
+                                    "value": "60d5ec49f1b2c72b8c8e4f1a"
+                                },
+                                {
+                                    "key": "userId",
+                                    "value": "60d5ec49f1b2c72b8c8e4f1b"
+                                }
+                            ]
+                        },
+                        "description": "Remove a member from group. Only admin can remove members. Admin cannot be removed."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Leave Group",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/nearbychatapi/v1/groups/:groupId/leave",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "nearbychatapi",
+                                "v1",
+                                "groups",
+                                ":groupId",
+                                "leave"
+                            ],
+                            "variable": [
+                                {
+                                    "key": "groupId",
+                                    "value": "60d5ec49f1b2c72b8c8e4f1a"
+                                }
+                            ]
+                        },
+                        "description": "Leave a group. If admin leaves, admin rights transfer to next member. If last member, group is deleted."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Upload Group Avatar",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}"
+                            }
+                        ],
+                        "body": {
+                            "mode": "formdata",
+                            "formdata": [
+                                {
+                                    "key": "avatar",
+                                    "type": "file",
+                                    "src": "/path/to/group-avatar.jpg"
+                                }
+                            ]
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/nearbychatapi/v1/groups/:groupId/avatar",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "nearbychatapi",
+                                "v1",
+                                "groups",
+                                ":groupId",
+                                "avatar"
+                            ],
+                            "variable": [
+                                {
+                                    "key": "groupId",
+                                    "value": "60d5ec49f1b2c72b8c8e4f1a"
+                                }
+                            ]
+                        },
+                        "description": "Upload group avatar. Only admin can upload."
+                    },
+                    "response": []
+                }
+            ],
+            "description": "Group chat management endpoints for creating, updating, and managing group members."
+        },
+        {
+            "name": "Coins",
+            "item": [
+                {
+                    "name": "Get Coin Balance",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/nearbychatapi/v1/coins/balance",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "nearbychatapi",
+                                "v1",
+                                "coins",
+                                "balance"
+                            ]
+                        },
+                        "description": "Get current coin balance and recent transactions."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Get Coin Prices",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/nearbychatapi/v1/coins/prices",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "nearbychatapi",
+                                "v1",
+                                "coins",
+                                "prices"
+                            ]
+                        },
+                        "description": "Get dynamic coin pricing for purchases. No authentication required."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Get Transaction History",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/nearbychatapi/v1/coins/transactions?page=1&limit=20",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "nearbychatapi",
+                                "v1",
+                                "coins",
+                                "transactions"
+                            ],
+                            "query": [
+                                {
+                                    "key": "page",
+                                    "value": "1"
+                                },
+                                {
+                                    "key": "limit",
+                                    "value": "20"
+                                }
+                            ]
+                        },
+                        "description": "Get paginated coin transaction history."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Claim Daily Bonus",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/nearbychatapi/v1/coins/daily-bonus",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "nearbychatapi",
+                                "v1",
+                                "coins",
+                                "daily-bonus"
+                            ]
+                        },
+                        "description": "Claim daily bonus of 10 coins. Can be claimed once per day."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Add Coins",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"amount\": 100,\n  \"reason\": \"Purchased coin package\",\n  \"type\": \"purchase\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/nearbychatapi/v1/coins/add",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "nearbychatapi",
+                                "v1",
+                                "coins",
+                                "add"
+                            ]
+                        },
+                        "description": "Add coins to user account. Requires full account (not guest). Type: 'purchase', 'bonus', 'earn'."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Deduct Coins",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"amount\": 10,\n  \"reason\": \"Used premium feature\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/nearbychatapi/v1/coins/deduct",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "nearbychatapi",
+                                "v1",
+                                "coins",
+                                "deduct"
+                            ]
+                        },
+                        "description": "Deduct coins from user account. Returns error if insufficient coins."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Watch Ad Reward",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/nearbychatapi/v1/coins/watch-ad",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "nearbychatapi",
+                                "v1",
+                                "coins",
+                                "watch-ad"
+                            ]
+                        },
+                        "description": "Claim reward for watching an ad. Default reward is 10 coins."
+                    },
+                    "response": []
+                }
+            ],
+            "description": "Coin management endpoints for balance, transactions, rewards, and purchases."
+        },
+        {
+            "name": "Health Check",
+            "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                    "raw": "{{base_url}}/health",
+                    "host": [
+                        "{{base_url}}"
+                    ],
+                    "path": [
+                        "health"
+                    ]
+                },
+                "description": "Health check endpoint to verify server status and uptime."
+            },
+            "response": []
+        }
+    ],
+    "variable": [
+        {
+            "key": "base_url",
+            "value": "http://localhost:5000",
+            "type": "string"
+        },
+        {
+            "key": "auth_token",
+            "value": "",
+            "type": "string"
+        }
+    ]
+}

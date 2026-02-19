@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nearby Chat - Test Client</title>
+    <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+        
+        .content {
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 20px;
+            padding: 30px;
+        }
+        
+        .sidebar {
+            border-right: 2px solid #f0f0f0;
+            padding-right: 20px;
+        }
+        
+        .section {
+            margin-bottom: 30px;
+        }
+        
+        .section h3 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 1.2rem;
+        }
+        
+        input, button, textarea {
+            width: 100%;
+            padding: 12px;
+            margin: 8px 0;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+        
+        input:focus, textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .status {
+            padding: 10px;
+            border-radius: 8px;
+            margin: 10px 0;
+            font-weight: 600;
+        }
+        
+        .status.online {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .status.offline {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
+        #messages {
+            height: 400px;
+            overflow-y: auto;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 15px;
+            background: #f9f9f9;
+        }
+        
+        .message {
+            margin: 10px 0;
+            padding: 12px;
+            border-radius: 8px;
+            background: white;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        
+        .message.sent {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            margin-left: 50px;
+        }
+        
+        .message.received {
+            background: white;
+            margin-right: 50px;
+        }
+        
+        .message-header {
+            font-size: 12px;
+            opacity: 0.8;
+            margin-bottom: 5px;
+        }
+        
+        .message-content {
+            font-size: 14px;
+        }
+        
+        .typing-indicator {
+            font-style: italic;
+            color: #667eea;
+            padding: 10px;
+        }
+        
+        #log {
+            height: 200px;
+            overflow-y: auto;
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+        }
+        
+        .log-entry {
+            margin: 5px 0;
+            padding: 5px;
+            border-left: 3px solid #667eea;
+            padding-left: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🌍 Nearby Chat</h1>
+            <p>Real-time Location-Based Chat Application</p>
+        </div>
+        
+        <div class="content">
+            <div class="sidebar">
+                <div class="section">
+                    <h3>🔐 Authentication</h3>
+                    <input type="text" id="username" placeholder="Username">
+                    <input type="email" id="email" placeholder="Email">
+                    <input type="tel" id="phone" placeholder="Phone">
+                    <input type="password" id="password" placeholder="Password">
+                    <button onclick="register()">Register</button>
+                    <button onclick="login()">Login</button>
+                </div>
+                
+                <div class="section">
+                    <h3>📍 Location</h3>
+                    <input type="number" id="latitude" placeholder="Latitude" step="0.000001">
+                    <input type="number" id="longitude" placeholder="Longitude" step="0.000001">
+                    <button onclick="updateLocation()">Update Location</button>
+                    <button onclick="getNearbyUsers()">Find Nearby Users</button>
+                </div>
+                
+                <div class="section">
+                    <h3>💬 Chat</h3>
+                    <input type="text" id="chatId" placeholder="Chat ID">
+                    <button onclick="joinChat()">Join Chat</button>
+                    <button onclick="connectSocket()">Connect Socket</button>
+                    <button onclick="disconnectSocket()">Disconnect</button>
+                </div>
+                
+                <div id="connectionStatus" class="status offline">
+                    ⚫ Disconnected
+                </div>
+            </div>
+            
+            <div class="main">
+                <div class="section">
+                    <h3>💬 Messages</h3>
+                    <div id="messages"></div>
+                    <div id="typingIndicator" class="typing-indicator"></div>
+                    <textarea id="messageInput" placeholder="Type a message..." rows="3"></textarea>
+                    <button onclick="sendMessage()">Send Message</button>
+                </div>
+                
+                <div class="section">
+                    <h3>📋 Activity Log</h3>
+                    <div id="log"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let socket = null;
+        let token = null;
+        let currentChatId = null;
+
+        const API_URL = 'http://localhost:5000/api';
+        const SOCKET_URL = 'http://localhost:5000';
+
+        // Utility functions
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('log');
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logDiv.appendChild(entry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+            console.log(message);
+        }
+
+        function updateStatus(online) {
+            const statusDiv = document.getElementById('connectionStatus');
+            if (online) {
+                statusDiv.className = 'status online';
+                statusDiv.textContent = '🟢 Connected';
+            } else {
+                statusDiv.className = 'status offline';
+                statusDiv.textContent = '⚫ Disconnected';
+            }
+        }
+
+        // Authentication
+        async function register() {
+            try {
+                const response = await fetch(`${API_URL}/auth/register`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        username: document.getElementById('username').value,
+                        email: document.getElementById('email').value,
+                        phone: document.getElementById('phone').value,
+                        password: document.getElementById('password').value
+                    })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    token = data.data.token;
+                    log('✅ Registration successful!');
+                    log(`Token: ${token.substring(0, 20)}...`);
+                } else {
+                    log('❌ Registration failed: ' + data.message);
+                }
+            } catch (error) {
+                log('❌ Error: ' + error.message);
+            }
+        }
+
+        async function login() {
+            try {
+                const response = await fetch(`${API_URL}/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        identifier: document.getElementById('email').value,
+                        password: document.getElementById('password').value
+                    })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    token = data.data.token;
+                    log('✅ Login successful!');
+                    log(`User: ${data.data.user.username}`);
+                } else {
+                    log('❌ Login failed: ' + data.message);
+                }
+            } catch (error) {
+                log('❌ Error: ' + error.message);
+            }
+        }
+
+        // Location
+        async function updateLocation() {
+            if (!token) {
+                log('❌ Please login first');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_URL}/users/location`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        latitude: parseFloat(document.getElementById('latitude').value),
+                        longitude: parseFloat(document.getElementById('longitude').value)
+                    })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    log('✅ Location updated!');
+                } else {
+                    log('❌ Location update failed: ' + data.message);
+                }
+            } catch (error) {
+                log('❌ Error: ' + error.message);
+            }
+        }
+
+        async function getNearbyUsers() {
+            if (!token) {
+                log('❌ Please login first');
+                return;
+            }
+            
+            try {
+                const lat = document.getElementById('latitude').value;
+                const lng = document.getElementById('longitude').value;
+                
+                const response = await fetch(
+                    `${API_URL}/users/nearby?latitude=${lat}&longitude=${lng}&radius=5000`,
+                    {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    }
+                );
+                
+                const data = await response.json();
+                if (data.success) {
+                    log(`✅ Found ${data.data.count} nearby users`);
+                    data.data.users.forEach(user => {
+                        log(`  - ${user.username} (${user.email})`);
+                    });
+                } else {
+                    log('❌ Failed to get nearby users: ' + data.message);
+                }
+            } catch (error) {
+                log('❌ Error: ' + error.message);
+            }
+        }
+
+        // Socket.IO
+        function connectSocket() {
+            if (!token) {
+                log('❌ Please login first');
+                return;
+            }
+
+            socket = io(SOCKET_URL, {
+                auth: { token }
+            });
+
+            socket.on('connect', () => {
+                log('✅ Socket connected!');
+                updateStatus(true);
+            });
+
+            socket.on('disconnect', () => {
+                log('❌ Socket disconnected');
+                updateStatus(false);
+            });
+
+            socket.on('message:new', (data) => {
+                log('📨 New message received');
+                displayMessage(data.message, false);
+            });
+
+            socket.on('typing:user', (data) => {
+                if (data.isTyping) {
+                    document.getElementById('typingIndicator').textContent = 
+                        `${data.username} is typing...`;
+                } else {
+                    document.getElementById('typingIndicator').textContent = '';
+                }
+            });
+
+            socket.on('user:online', (data) => {
+                log(`🟢 User ${data.userId} is online`);
+            });
+
+            socket.on('user:offline', (data) => {
+                log(`⚫ User ${data.userId} is offline`);
+            });
+
+            socket.on('error', (data) => {
+                log('❌ Socket error: ' + data.message);
+            });
+        }
+
+        function disconnectSocket() {
+            if (socket) {
+                socket.disconnect();
+                socket = null;
+                updateStatus(false);
+            }
+        }
+
+        function joinChat() {
+            if (!socket) {
+                log('❌ Please connect socket first');
+                return;
+            }
+
+            currentChatId = document.getElementById('chatId').value;
+            socket.emit('chat:join', { chatId: currentChatId });
+            log(`📌 Joining chat: ${currentChatId}`);
+        }
+
+        function sendMessage() {
+            if (!socket || !currentChatId) {
+                log('❌ Please connect and join a chat first');
+                return;
+            }
+
+            const content = document.getElementById('messageInput').value;
+            if (!content.trim()) return;
+
+            socket.emit('message:send', {
+                chatId: currentChatId,
+                content,
+                type: 'text'
+            });
+
+            displayMessage({
+                content,
+                sender: { username: 'You' },
+                createdAt: new Date()
+            }, true);
+
+            document.getElementById('messageInput').value = '';
+        }
+
+        function displayMessage(message, isSent) {
+            const messagesDiv = document.getElementById('messages');
+            const messageEl = document.createElement('div');
+            messageEl.className = `message ${isSent ? 'sent' : 'received'}`;
+            
+            messageEl.innerHTML = `
+                <div class="message-header">
+                    ${message.sender.username} • ${new Date(message.createdAt).toLocaleTimeString()}
+                </div>
+                <div class="message-content">${message.content}</div>
+            `;
+            
+            messagesDiv.appendChild(messageEl);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        // Typing indicator
+        let typingTimeout;
+        document.getElementById('messageInput')?.addEventListener('input', () => {
+            if (socket && currentChatId) {
+                socket.emit('typing:start', { chatId: currentChatId });
+                
+                clearTimeout(typingTimeout);
+                typingTimeout = setTimeout(() => {
+                    socket.emit('typing:stop', { chatId: currentChatId });
+                }, 1000);
+            }
+        });
+
+        // Initialize
+        log('🚀 Nearby Chat Test Client Ready');
+        log('📝 Please register or login to start');
+    </script>
+</body>
+</html>

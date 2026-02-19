@@ -1,0 +1,39 @@
+# Dependencies
+node_modules
+
+# Local development
+.env.local
+.env.development
+
+# Logs
+*.log
+npm-debug.log*
+
+# Testing
+test-*.js
+*.test.js
+*.spec.js
+
+# Documentation (optional, remove if you want docs deployed)
+docs
+
+# Local uploads (not needed on Vercel)
+public/uploads
+uploads
+
+# Git
+.git
+.gitignore
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Vercel
+.vercel
