@@ -40,6 +40,11 @@ const messagePoolSchema = new mongoose.Schema({
         type: Date,
         required: true,
         index: { expires: 0 } // TTL index: documents expire at the specified date
+    },
+    reservedCoins: {
+        type: Number,
+        default: 0,
+        min: 0
     }
 }, {
     timestamps: true

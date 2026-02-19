@@ -31,7 +31,7 @@ const settingsSchema = new mongoose.Schema({
 settingsSchema.statics.getDefaults = function () {
     return {
         // Coin Prices
-        'coin.send_request': { value: 10, category: 'coins', description: 'Coins for sending a chat request' },
+        'coin.send_request': { value: 25, category: 'coins', description: 'Coins for broadcasting a message' },
         'coin.age_filter_extra': { value: 5, category: 'coins', description: 'Extra coins for age-specific selection' },
         'coin.extend_chat_24h': { value: 50, category: 'coins', description: 'Coins to extend chat by 24 hours' },
         'coin.extend_chat_48h': { value: 90, category: 'coins', description: 'Coins to extend chat by 48 hours' },
@@ -41,7 +41,7 @@ settingsSchema.statics.getDefaults = function () {
         // Coin Rewards
         'reward.guest_signup': { value: 50, category: 'coins', description: 'Welcome coins for guest users' },
         'reward.full_signup': { value: 150, category: 'coins', description: 'Welcome coins for full registration' },
-        'reward.ad_watch': { value: 10, category: 'coins', description: 'Coins for watching an ad' },
+        'reward.ad_watch': { value: 50, category: 'coins', description: 'Coins for watching an ad' },
         'reward.daily_bonus': { value: 5, category: 'coins', description: 'Daily bonus coins' },
 
         // Feature Toggles

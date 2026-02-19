@@ -242,6 +242,84 @@ const handleToggleMute = async (socket, data, callback) => {
     }
 };
 
+// Toggle pin chat
+const handleTogglePin = async (socket, data, callback) => {
+    try {
+        const { chatId, pin } = data;
+
+        const chat = await Chat.findOne({
+            _id: chatId,
+            participants: socket.userId
+        });
+
+        if (!chat) {
+            return callback({ success: false, message: 'Chat not found' });
+        }
+
+        if (pin) {
+            if (!chat.pinnedBy.includes(socket.userId)) {
+                chat.pinnedBy.push(socket.userId);
+            }
+        } else {
+            chat.pinnedBy = chat.pinnedBy.filter(id => id.toString() !== socket.userId.toString());
+        }
+
+        await chat.save();
+
+        // Invalidate cache
+        await deleteCache(`chat:${chatId}`);
+        await invalidateUserChatsCache(socket.userId);
+
+        callback({
+            success: true,
+            message: pin ? 'Chat pinned' : 'Chat unpinned',
+            data: { chat }
+        });
+    } catch (error) {
+        console.error('Toggle pin chat error:', error);
+        callback({ success: false, message: 'Error updating chat', error: error.message });
+    }
+};
+
+// Toggle archive chat
+const handleToggleArchive = async (socket, data, callback) => {
+    try {
+        const { chatId, archive } = data;
+
+        const chat = await Chat.findOne({
+            _id: chatId,
+            participants: socket.userId
+        });
+
+        if (!chat) {
+            return callback({ success: false, message: 'Chat not found' });
+        }
+
+        if (archive) {
+            if (!chat.archivedBy.includes(socket.userId)) {
+                chat.archivedBy.push(socket.userId);
+            }
+        } else {
+            chat.archivedBy = chat.archivedBy.filter(id => id.toString() !== socket.userId.toString());
+        }
+
+        await chat.save();
+
+        // Invalidate cache
+        await deleteCache(`chat:${chatId}`);
+        await invalidateUserChatsCache(socket.userId);
+
+        callback({
+            success: true,
+            message: archive ? 'Chat archived' : 'Chat unarchived',
+            data: { chat }
+        });
+    } catch (error) {
+        console.error('Toggle archive chat error:', error);
+        callback({ success: false, message: 'Error updating chat', error: error.message });
+    }
+};
+
 // Clear unread count
 const handleClearUnread = async (socket, data, callback) => {
     try {
@@ -267,6 +345,49 @@ const handleClearUnread = async (socket, data, callback) => {
     } catch (error) {
         console.error('Clear unread count error:', error);
         callback({ success: false, message: 'Error clearing unread count', error: error.message });
+    }
+};
+
+// Clear chat (delete all messages)
+const handleClearChat = async (socket, io, data, callback) => {
+    try {
+        const { chatId } = data;
+        const Message = require('../../model/Message.model');
+
+        const chat = await Chat.findOne({
+            _id: chatId,
+            participants: socket.userId
+        });
+
+        if (!chat) {
+            return callback({ success: false, message: 'Chat not found' });
+        }
+
+        // Delete all messages
+        await Message.deleteMany({ chat: chatId });
+
+        // Clear lastMessage and unreadCount
+        chat.lastMessage = null;
+        chat.unreadCount.set(socket.userId.toString(), 0);
+        await chat.save();
+
+        // Invalidate caches
+        await deleteCache(`chat:${chatId}`);
+        await invalidateUserChatsCache(socket.userId);
+        // Invalidate messages cache
+        for (let page = 1; page <= 20; page++) {
+            for (let limit of [20, 50, 100]) {
+                await deleteCache(`messages:chat:${chatId}:page:${page}:limit:${limit}`);
+            }
+        }
+
+        // Emit socket event
+        io.to(chatId).emit('chat:cleared', { chatId });
+
+        callback({ success: true, message: 'Chat cleared successfully' });
+    } catch (error) {
+        console.error('Clear chat error:', error);
+        callback({ success: false, message: 'Error clearing chat', error: error.message });
     }
 };
 
@@ -348,7 +469,10 @@ module.exports = {
     handleCreatePrivateChat,
     handleDeleteChat,
     handleToggleMute,
+    handleTogglePin,
+    handleToggleArchive,
     handleClearUnread,
+    handleClearChat,
     handleJoinChat,
     handleLeaveChat
 };

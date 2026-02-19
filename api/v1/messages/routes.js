@@ -19,5 +19,7 @@ router.post('/', auth, sendMessageValidation, validate, messageController.sendMe
 router.post('/upload', auth, upload.single('media'), handleMulterError, messageController.uploadMedia);
 router.delete('/:messageId', auth, messageController.deleteMessage);
 router.put('/:chatId/read', auth, messageController.markAsRead);
+router.post('/:messageId/reaction', auth, messageController.addReaction);
+router.delete('/:messageId/reaction', auth, messageController.removeReaction);
 
 module.exports = router;

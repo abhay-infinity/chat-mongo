@@ -1,6 +1,7 @@
 const User = require('../../model/User.model');
 const Chat = require('../../model/Chat.model');
 const MessagePool = require('../../model/MessagePool.model');
+const ConnectionRequest = require('../../model/ConnectionRequest.model');
 const { getAppSetting } = require('../../utils/settings');
 const { getCache, setCache } = require('../../config/redis');
 
@@ -277,9 +278,186 @@ const handleExtendChat = async (socket, io, data, callback) => {
     }
 };
 
+// Send Connection Request (via Socket.IO)
+const handleSendConnectionRequest = async (socket, io, data, callback) => {
+    try {
+        const { poolId, message } = data;
+
+        const poolEntry = await MessagePool.findById(poolId);
+        if (!poolEntry || !poolEntry.isActive || poolEntry.expiresAt < new Date()) {
+            return callback({ success: false, message: 'Broadcast no longer available' });
+        }
+
+        if (poolEntry.sender.toString() === socket.userId) {
+            return callback({ success: false, message: 'Cannot send request to your own broadcast' });
+        }
+
+        const existingRequest = await ConnectionRequest.findOne({
+            poolId,
+            requester: socket.userId,
+            status: 'pending'
+        });
+
+        if (existingRequest) {
+            return callback({ success: false, message: 'Request already sent' });
+        }
+
+        const request = new ConnectionRequest({
+            poolId,
+            broadcaster: poolEntry.sender,
+            requester: socket.userId,
+            message: message || '',
+            expiresAt: poolEntry.expiresAt
+        });
+
+        await request.save();
+        await request.populate('requester', 'username avatar gender age');
+
+        // Notify broadcaster
+        const broadcasterSocketId = global.userSockets?.get(poolEntry.sender.toString());
+        if (broadcasterSocketId) {
+            io.to(broadcasterSocketId).emit('request:new', {
+                request: request.toObject()
+            });
+        }
+
+        callback({
+            success: true,
+            message: 'Connection request sent',
+            data: { request: request.toObject() }
+        });
+    } catch (error) {
+        console.error('Send connection request error:', error);
+        callback({ success: false, message: 'Error sending request', error: error.message });
+    }
+};
+
+// Get Connection Requests (via Socket.IO)
+const handleGetConnectionRequests = async (socket, data, callback) => {
+    try {
+        const { poolId } = data;
+
+        const poolEntry = await MessagePool.findById(poolId);
+        if (!poolEntry || poolEntry.sender.toString() !== socket.userId) {
+            return callback({ success: false, message: 'Unauthorized' });
+        }
+
+        const requests = await ConnectionRequest.find({
+            poolId,
+            status: 'pending'
+        })
+            .populate('requester', 'username avatar gender age')
+            .sort({ createdAt: -1 })
+            .lean();
+
+        callback({
+            success: true,
+            data: { requests }
+        });
+    } catch (error) {
+        console.error('Get connection requests error:', error);
+        callback({ success: false, message: 'Error fetching requests', error: error.message });
+    }
+};
+
+// Accept Connection Request (via Socket.IO)
+const handleAcceptRequest = async (socket, io, data, callback) => {
+    try {
+        const { requestId } = data;
+
+        const request = await ConnectionRequest.findById(requestId).populate('poolId');
+        if (!request || request.status !== 'pending') {
+            return callback({ success: false, message: 'Request not found or already processed' });
+        }
+
+        const poolEntry = request.poolId;
+        if (poolEntry.sender.toString() !== socket.userId) {
+            return callback({ success: false, message: 'Unauthorized' });
+        }
+
+        if (!poolEntry.isActive || poolEntry.expiresAt < new Date()) {
+            return callback({ success: false, message: 'Broadcast has expired' });
+        }
+
+        const broadcaster = await User.findById(socket.userId);
+        const cost = poolEntry.reservedCoins || 0;
+
+        if (broadcaster.coins < cost) {
+            return callback({
+                success: false,
+                message: 'Insufficient coins',
+                required: cost,
+                available: broadcaster.coins
+            });
+        }
+
+        await broadcaster.deductCoins(cost, 'Accepted connection request');
+
+        const expiryHours = await getAppSetting('limit.chat_expiry_hours', 24);
+        const chatExpiresAt = new Date(Date.now() + expiryHours * 60 * 60 * 1000);
+
+        const chat = new Chat({
+            type: 'private',
+            participants: [socket.userId, request.requester],
+            isRandomChat: true,
+            expiresAt: chatExpiresAt
+        });
+
+        await chat.save();
+        await chat.populate('participants', 'username avatar gender age');
+
+        request.status = 'accepted';
+        await request.save();
+
+        await ConnectionRequest.updateMany(
+            {
+                poolId: poolEntry._id,
+                _id: { $ne: requestId },
+                status: 'pending'
+            },
+            { status: 'rejected' }
+        );
+
+        poolEntry.isActive = false;
+        poolEntry.reservedCoins = 0;
+        await poolEntry.save();
+
+        // Notify requester
+        const requesterSocketId = global.userSockets?.get(request.requester.toString());
+        if (requesterSocketId) {
+            io.to(requesterSocketId).emit('request:accepted', {
+                request: request.toObject(),
+                chat: chat.toObject()
+            });
+        }
+
+        // Notify broadcaster
+        io.to(socket.id).emit('request:accepted', {
+            request: request.toObject(),
+            chat: chat.toObject()
+        });
+
+        callback({
+            success: true,
+            message: 'Request accepted, chat created',
+            data: {
+                chat: chat.toObject(),
+                request: request.toObject(),
+                balance: broadcaster.coins
+            }
+        });
+    } catch (error) {
+        console.error('Accept request error:', error);
+        callback({ success: false, message: 'Error accepting request', error: error.message });
+    }
+};
+
 module.exports = {
     handleInitiateSend,
     handleGetActivePool,
     handleAcceptSend,
-    handleExtendChat
+    handleExtendChat,
+    handleSendConnectionRequest,
+    handleGetConnectionRequests,
+    handleAcceptRequest
 };

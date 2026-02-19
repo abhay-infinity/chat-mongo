@@ -271,10 +271,90 @@ const invalidateUserChatsCache = async (userId) => {
     }
 };
 
+// Add reaction to message
+const handleAddReaction = async (socket, io, data, callback) => {
+    try {
+        const { messageId, emoji } = data;
+        const validEmojis = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
+        
+        if (!validEmojis.includes(emoji)) {
+            return callback({ success: false, message: 'Invalid emoji' });
+        }
+
+        const message = await Message.findById(messageId);
+        if (!message) {
+            return callback({ success: false, message: 'Message not found' });
+        }
+
+        // Remove existing reaction from this user
+        message.reactions = message.reactions.filter(
+            r => r.user.toString() !== socket.userId.toString()
+        );
+
+        // Add new reaction
+        message.reactions.push({
+            user: socket.userId,
+            emoji: emoji
+        });
+
+        await message.save();
+        await message.populate('reactions.user', 'username avatar');
+
+        // Invalidate cache
+        await invalidateMessagesCache(message.chat.toString());
+
+        // Emit to all participants
+        io.to(message.chat.toString()).emit('message:reaction', {
+            messageId: message._id,
+            reactions: message.reactions
+        });
+
+        callback({ success: true, data: { message: message.toObject() } });
+    } catch (error) {
+        console.error('Add reaction error:', error);
+        callback({ success: false, message: 'Error adding reaction', error: error.message });
+    }
+};
+
+// Remove reaction from message
+const handleRemoveReaction = async (socket, io, data, callback) => {
+    try {
+        const { messageId } = data;
+
+        const message = await Message.findById(messageId);
+        if (!message) {
+            return callback({ success: false, message: 'Message not found' });
+        }
+
+        message.reactions = message.reactions.filter(
+            r => r.user.toString() !== socket.userId.toString()
+        );
+
+        await message.save();
+        await message.populate('reactions.user', 'username avatar');
+
+        // Invalidate cache
+        await invalidateMessagesCache(message.chat.toString());
+
+        // Emit to all participants
+        io.to(message.chat.toString()).emit('message:reaction', {
+            messageId: message._id,
+            reactions: message.reactions
+        });
+
+        callback({ success: true, data: { message: message.toObject() } });
+    } catch (error) {
+        console.error('Remove reaction error:', error);
+        callback({ success: false, message: 'Error removing reaction', error: error.message });
+    }
+};
+
 module.exports = {
     handleGetMessages,
     handleSendMessage,
     handleDeleteMessage,
     handleMarkAsRead,
-    handleMarkAsDelivered
+    handleMarkAsDelivered,
+    handleAddReaction,
+    handleRemoveReaction
 };

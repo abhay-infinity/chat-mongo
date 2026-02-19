@@ -272,7 +272,7 @@ exports.watchAdReward = async (req, res) => {
             return res.status(404).json({ success: false, message: 'User not found' });
         }
 
-        const adReward = await getAppSetting('reward.ad_watch', 10);
+        const adReward = await getAppSetting('reward.ad_watch', 50);
         const newBalance = await user.addCoins(adReward, 'Watched Ad Reward', 'earn');
 
         // Update cache

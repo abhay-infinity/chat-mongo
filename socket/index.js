@@ -41,8 +41,20 @@ module.exports = (io) => {
             chatHandlers.handleToggleMute(socket, data, callback)
         );
 
+        socket.on('chat:togglePin', (data, callback) =>
+            chatHandlers.handleTogglePin(socket, data, callback)
+        );
+
+        socket.on('chat:toggleArchive', (data, callback) =>
+            chatHandlers.handleToggleArchive(socket, data, callback)
+        );
+
         socket.on('chat:clearUnread', (data, callback) =>
             chatHandlers.handleClearUnread(socket, data, callback)
+        );
+
+        socket.on('chat:clear', (data, callback) =>
+            chatHandlers.handleClearChat(socket, io, data, callback)
         );
 
         socket.on('chat:join', (data, callback) =>
@@ -100,6 +112,19 @@ module.exports = (io) => {
             poolHandlers.handleExtendChat(socket, io, data, callback)
         );
 
+        // ==================== CONNECTION REQUESTS ====================
+        socket.on('request:send', (data, callback) =>
+            poolHandlers.handleSendConnectionRequest(socket, io, data, callback)
+        );
+
+        socket.on('requests:get', (data, callback) =>
+            poolHandlers.handleGetConnectionRequests(socket, data, callback)
+        );
+
+        socket.on('request:accept', (data, callback) =>
+            poolHandlers.handleAcceptRequest(socket, io, data, callback)
+        );
+
         // ==================== USER OPERATIONS ====================
         socket.on('location:update', (data, callback) =>
             userHandlers.handleUpdateLocation(socket, data, callback)
@@ -111,6 +136,14 @@ module.exports = (io) => {
 
         socket.on('users:nearby', (data, callback) =>
             userHandlers.handleGetNearbyUsers(socket, data, callback)
+        );
+
+        socket.on('user:block', (data, callback) =>
+            userHandlers.handleBlockUser(socket, data, callback)
+        );
+
+        socket.on('wave:send', (data, callback) =>
+            userHandlers.handleSendWave(socket, io, data, callback)
         );
 
         // ==================== DISCONNECT HANDLER ====================

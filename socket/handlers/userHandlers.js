@@ -139,8 +139,81 @@ const handleGetNearbyUsers = async (socket, data, callback) => {
     }
 };
 
+// Block user
+const handleBlockUser = async (socket, data, callback) => {
+    try {
+        const { userId } = data;
+
+        if (!userId) {
+            return callback({ success: false, message: 'User ID is required' });
+        }
+
+        if (userId === socket.userId.toString()) {
+            return callback({ success: false, message: 'Cannot block yourself' });
+        }
+
+        const user = await User.findByIdAndUpdate(
+            socket.userId,
+            { $addToSet: { blockedUsers: userId } },
+            { new: true }
+        ).select('-password');
+
+        // Invalidate user cache
+        await setCache(`user:${socket.userId}`, null, 0);
+
+        callback({
+            success: true,
+            message: 'User blocked successfully',
+            data: { user }
+        });
+    } catch (error) {
+        console.error('Block user error:', error);
+        callback({ success: false, message: 'Error blocking user', error: error.message });
+    }
+};
+
+// Send wave
+const handleSendWave = async (socket, io, data, callback) => {
+    try {
+        const { userId } = data;
+
+        if (!userId) {
+            return callback({ success: false, message: 'User ID is required' });
+        }
+
+        const targetUser = await User.findById(userId);
+        if (!targetUser) {
+            return callback({ success: false, message: 'User not found' });
+        }
+
+        // Add wave to target user
+        targetUser.wavesReceived.push({
+            from: socket.userId,
+            createdAt: new Date()
+        });
+        await targetUser.save();
+
+        // Emit socket event to notify target user
+        const targetSocketId = global.userSockets?.get(userId);
+        if (targetSocketId) {
+            const sender = await User.findById(socket.userId).select('username avatar');
+            io.to(targetSocketId).emit('wave:received', {
+                from: sender,
+                timestamp: new Date()
+            });
+        }
+
+        callback({ success: true, message: 'Wave sent successfully' });
+    } catch (error) {
+        console.error('Send wave error:', error);
+        callback({ success: false, message: 'Error sending wave', error: error.message });
+    }
+};
+
 module.exports = {
     handleUpdateLocation,
     handleSearchUsers,
-    handleGetNearbyUsers
+    handleGetNearbyUsers,
+    handleBlockUser,
+    handleSendWave
 };

@@ -33,18 +33,32 @@ exports.getUserProfile = async (req, res) => {
 // Update User Profile
 exports.updateProfile = async (req, res) => {
     try {
-        const { username, bio, avatar } = req.body;
+        const { username, bio, avatar, gender, age, address } = req.body;
         const updates = {};
 
         if (username) updates.username = username;
         if (bio !== undefined) updates.bio = bio;
         if (avatar) updates.avatar = avatar;
+        if (gender) updates.gender = gender;
+        if (age !== undefined) updates.age = age;
+        if (address !== undefined) {
+            // Update address in location object
+            const user = await User.findById(req.userId);
+            if (user && user.location) {
+                updates['location.address'] = address;
+            } else {
+                updates['location.address'] = address;
+            }
+        }
 
         const user = await User.findByIdAndUpdate(
             req.userId,
             updates,
             { new: true, runValidators: true }
         ).select('-password');
+
+        // Invalidate cache
+        await deleteCache(`user:${req.userId}`);
 
         res.json({
             success: true,
@@ -404,6 +418,74 @@ exports.getAppConfig = async (req, res) => {
         res.status(500).json({
             success: false,
             message: 'Error loading app configuration',
+            error: error.message
+        });
+    }
+};
+
+// Send Wave
+exports.sendWave = async (req, res) => {
+    try {
+        const { userId } = req.params;
+        const targetUser = await User.findById(userId);
+        
+        if (!targetUser) {
+            return res.status(404).json({
+                success: false,
+                message: 'User not found'
+            });
+        }
+
+        // Add wave to target user
+        targetUser.wavesReceived.push({
+            from: req.userId,
+            createdAt: new Date()
+        });
+        await targetUser.save();
+
+        // Emit socket event to notify target user
+        const io = req.app.get('io');
+        if (io) {
+            const targetSocketId = global.userSockets?.get(userId);
+            if (targetSocketId) {
+                const sender = await User.findById(req.userId).select('username avatar');
+                io.to(targetSocketId).emit('wave:received', {
+                    from: sender,
+                    timestamp: new Date()
+                });
+            }
+        }
+
+        res.json({
+            success: true,
+            message: 'Wave sent successfully'
+        });
+    } catch (error) {
+        console.error('Send wave error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error sending wave',
+            error: error.message
+        });
+    }
+};
+
+// Update FCM Token
+exports.updateFcmToken = async (req, res) => {
+    try {
+        const { token } = req.body;
+        
+        await User.findByIdAndUpdate(req.userId, { fcmToken: token });
+        
+        res.json({
+            success: true,
+            message: 'FCM token updated'
+        });
+    } catch (error) {
+        console.error('Update FCM token error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error updating FCM token',
             error: error.message
         });
     }

@@ -136,7 +136,21 @@ const userSchema = new mongoose.Schema({
             groups: { type: Boolean, default: true },
             nearbyUsers: { type: Boolean, default: true }
         }
-    }
+    },
+    fcmToken: {
+        type: String,
+        default: null
+    },
+    wavesReceived: [{
+        from: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User'
+        },
+        createdAt: {
+            type: Date,
+            default: Date.now
+        }
+    }]
 }, {
     timestamps: true
 });

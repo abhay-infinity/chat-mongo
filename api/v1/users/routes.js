@@ -17,7 +17,20 @@ const updateProfileValidation = [
         .optional()
         .trim()
         .isLength({ max: 200 })
-        .withMessage('Bio must not exceed 200 characters')
+        .withMessage('Bio must not exceed 200 characters'),
+    body('gender')
+        .optional()
+        .isIn(['male', 'female', 'other', 'unknown'])
+        .withMessage('Invalid gender value'),
+    body('age')
+        .optional()
+        .isInt({ min: 13, max: 100 })
+        .withMessage('Age must be between 13 and 100'),
+    body('address')
+        .optional()
+        .trim()
+        .isLength({ max: 200 })
+        .withMessage('Address must not exceed 200 characters')
 ];
 
 const updateLocationValidation = [
@@ -55,6 +68,8 @@ router.get('/search', auth, userController.searchUsers);
 router.put('/settings', auth, userController.updateSettings);
 router.post('/block/:userId', auth, userController.blockUser);
 router.delete('/block/:userId', auth, userController.unblockUser);
+router.post('/wave/:userId', auth, userController.sendWave);
+router.post('/fcm-token', auth, userController.updateFcmToken);
 router.post('/avatar', auth, upload.single('avatar'), handleMulterError, userController.uploadAvatar);
 
 module.exports = router;

@@ -2,6 +2,7 @@ const Chat = require('../../../model/Chat.model');
 const Message = require('../../../model/Message.model');
 const User = require('../../../model/User.model');
 const MessagePool = require('../../../model/MessagePool.model');
+const ConnectionRequest = require('../../../model/ConnectionRequest.model');
 const { getAppSetting } = require('../../../utils/settings');
 
 // Get All Chats
@@ -212,6 +213,92 @@ exports.toggleMuteChat = async (req, res) => {
     }
 };
 
+// Pin/Unpin Chat
+exports.togglePinChat = async (req, res) => {
+    try {
+        const { chatId } = req.params;
+        const { pin } = req.body;
+
+        const chat = await Chat.findOne({
+            _id: chatId,
+            participants: req.userId
+        });
+
+        if (!chat) {
+            return res.status(404).json({
+                success: false,
+                message: 'Chat not found'
+            });
+        }
+
+        if (pin) {
+            if (!chat.pinnedBy.includes(req.userId)) {
+                chat.pinnedBy.push(req.userId);
+            }
+        } else {
+            chat.pinnedBy = chat.pinnedBy.filter(id => id.toString() !== req.userId.toString());
+        }
+
+        await chat.save();
+
+        res.json({
+            success: true,
+            message: pin ? 'Chat pinned' : 'Chat unpinned',
+            data: { chat }
+        });
+    } catch (error) {
+        console.error('Toggle pin chat error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error updating chat',
+            error: error.message
+        });
+    }
+};
+
+// Archive/Unarchive Chat
+exports.toggleArchiveChat = async (req, res) => {
+    try {
+        const { chatId } = req.params;
+        const { archive } = req.body;
+
+        const chat = await Chat.findOne({
+            _id: chatId,
+            participants: req.userId
+        });
+
+        if (!chat) {
+            return res.status(404).json({
+                success: false,
+                message: 'Chat not found'
+            });
+        }
+
+        if (archive) {
+            if (!chat.archivedBy.includes(req.userId)) {
+                chat.archivedBy.push(req.userId);
+            }
+        } else {
+            chat.archivedBy = chat.archivedBy.filter(id => id.toString() !== req.userId.toString());
+        }
+
+        await chat.save();
+
+        res.json({
+            success: true,
+            message: archive ? 'Chat archived' : 'Chat unarchived',
+            data: { chat }
+        });
+    } catch (error) {
+        console.error('Toggle archive chat error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error updating chat',
+            error: error.message
+        });
+    }
+};
+
 // Clear Unread Count
 exports.clearUnreadCount = async (req, res) => {
     try {
@@ -272,8 +359,8 @@ exports.initiateSend = async (req, res) => {
             });
         }
 
-        // Deduct coins
-        await user.deductCoins(cost, 'Initiated random chat request');
+        // RESERVE coins (don't deduct yet - will deduct when accepting a request)
+        // Coins will be available again if broadcast is cancelled
 
         // ================= AUTO-MATCH LOGIC =================
         // Check if there is someone compatible ALREADY in the pool
@@ -298,6 +385,9 @@ exports.initiateSend = async (req, res) => {
 
             if (weMatchThem) {
                 // MATCH FOUND! 🚀 Create chat immediately
+                // Deduct coins immediately for auto-match
+                await user.deductCoins(cost, 'Auto-matched random chat');
+                
                 const expiryHours = await getAppSetting('limit.chat_expiry_hours', 24);
                 const chatExpiresAt = new Date(Date.now() + expiryHours * 60 * 60 * 1000);
 
@@ -312,6 +402,7 @@ exports.initiateSend = async (req, res) => {
 
                 // Deactivate the matched pool entry
                 potentialMatch.isActive = false;
+                potentialMatch.reservedCoins = 0; // Clear reserved coins
                 await potentialMatch.save();
 
                 await chat.populate('participants', 'username avatar gender age');
@@ -329,21 +420,27 @@ exports.initiateSend = async (req, res) => {
         const poolExpiryMinutes = await getAppSetting('limit.pool_expiry_minutes', 60);
         const expiresAt = new Date(Date.now() + poolExpiryMinutes * 60 * 1000);
 
-        // Create Pool Entry
+        // Create Pool Entry with reserved coins
         const poolEntry = new MessagePool({
             sender: req.userId,
             message: message || 'Hey! Want to chat?',
             preferences: preferences || { gender: 'any', ageRange: 'any' },
             location: location || { type: 'Point', coordinates: [0, 0] },
-            expiresAt
+            expiresAt,
+            reservedCoins: cost  // Store reserved amount
         });
 
         await poolEntry.save();
 
         res.status(201).json({
             success: true,
-            message: 'Request added to global pool',
-            data: { poolEntry, balance: user.coins, isMatched: false }
+            message: 'Broadcast created. Waiting for connection requests.',
+            data: { 
+                poolEntry, 
+                balance: user.coins, 
+                reservedCoins: cost,
+                isMatched: false 
+            }
         });
     } catch (error) {
         console.error('Initiate send error:', error);
@@ -358,15 +455,65 @@ exports.initiateSend = async (req, res) => {
 // Get Active Pool (For Map View)
 exports.getActivePool = async (req, res) => {
     try {
-        const poolEntries = await MessagePool.find({
+        const { latitude, longitude, radius = 5000 } = req.query;
+
+        let query = {
             isActive: true,
             expiresAt: { $gt: new Date() },
             sender: { $ne: req.userId } // Don't show own requests
-        }).populate('sender', 'username avatar gender age');
+        };
+
+        let poolEntries;
+        
+        // If location provided, use geospatial query
+        if (latitude && longitude) {
+            const lat = parseFloat(latitude);
+            const lng = parseFloat(longitude);
+            const maxDistance = parseFloat(radius);
+
+            poolEntries = await MessagePool.find({
+                ...query,
+                location: {
+                    $near: {
+                        $geometry: {
+                            type: 'Point',
+                            coordinates: [lng, lat]
+                        },
+                        $maxDistance: maxDistance
+                    }
+                }
+            })
+                .populate('sender', 'username avatar gender age')
+                .lean();
+        } else {
+            poolEntries = await MessagePool.find(query)
+                .populate('sender', 'username avatar gender age')
+                .lean();
+        }
+
+        // Calculate distance if location provided
+        const entriesWithDistance = poolEntries.map(entry => {
+            const result = { ...entry };
+            if (latitude && longitude && entry.location?.coordinates) {
+                const [entryLng, entryLat] = entry.location.coordinates;
+                // Haversine formula for distance calculation
+                const R = 6371000; // Earth radius in meters
+                const dLat = (entryLat - parseFloat(latitude)) * Math.PI / 180;
+                const dLon = (entryLng - parseFloat(longitude)) * Math.PI / 180;
+                const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                    Math.cos(parseFloat(latitude) * Math.PI / 180) *
+                    Math.cos(entryLat * Math.PI / 180) *
+                    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+                const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+                const distance = R * c;
+                result.distance = Math.round(distance); // in meters
+            }
+            return result;
+        });
 
         res.json({
             success: true,
-            data: { poolEntries }
+            data: { poolEntries: entriesWithDistance }
         });
     } catch (error) {
         console.error('Get active pool error:', error);
@@ -420,6 +567,318 @@ exports.acceptSend = async (req, res) => {
         res.status(500).json({
             success: false,
             message: 'Error starting chat',
+            error: error.message
+        });
+    }
+};
+
+// Send Connection Request (Receiver sends request to broadcaster)
+exports.sendConnectionRequest = async (req, res) => {
+    try {
+        const { poolId } = req.params;
+        const { message } = req.body;
+
+        const poolEntry = await MessagePool.findById(poolId);
+        if (!poolEntry || !poolEntry.isActive || poolEntry.expiresAt < new Date()) {
+            return res.status(404).json({
+                success: false,
+                message: 'Broadcast no longer available'
+            });
+        }
+
+        // Can't send request to own broadcast
+        if (poolEntry.sender.toString() === req.userId) {
+            return res.status(400).json({
+                success: false,
+                message: 'Cannot send request to your own broadcast'
+            });
+        }
+
+        // Check if request already exists
+        const existingRequest = await ConnectionRequest.findOne({
+            poolId,
+            requester: req.userId,
+            status: 'pending'
+        });
+
+        if (existingRequest) {
+            return res.status(400).json({
+                success: false,
+                message: 'Request already sent'
+            });
+        }
+
+        // Create connection request
+        const request = new ConnectionRequest({
+            poolId,
+            broadcaster: poolEntry.sender,
+            requester: req.userId,
+            message: message || '',
+            expiresAt: poolEntry.expiresAt
+        });
+
+        await request.save();
+        await request.populate('requester', 'username avatar gender age');
+
+        // Notify broadcaster via Socket.IO
+        const io = req.app.get('io');
+        if (io) {
+            const broadcasterSocketId = global.userSockets?.get(poolEntry.sender.toString());
+            if (broadcasterSocketId) {
+                io.to(broadcasterSocketId).emit('request:new', {
+                    request: request.toObject()
+                });
+            }
+        }
+
+        res.status(201).json({
+            success: true,
+            message: 'Connection request sent',
+            data: { request: request.toObject() }
+        });
+    } catch (error) {
+        console.error('Send connection request error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error sending request',
+            error: error.message
+        });
+    }
+};
+
+// Get Connection Requests (For broadcaster to see all requests)
+exports.getConnectionRequests = async (req, res) => {
+    try {
+        const { poolId } = req.params;
+
+        const poolEntry = await MessagePool.findById(poolId);
+        if (!poolEntry) {
+            return res.status(404).json({
+                success: false,
+                message: 'Broadcast not found'
+            });
+        }
+
+        // Only broadcaster can see requests
+        if (poolEntry.sender.toString() !== req.userId) {
+            return res.status(403).json({
+                success: false,
+                message: 'Unauthorized - Only broadcaster can view requests'
+            });
+        }
+
+        const requests = await ConnectionRequest.find({
+            poolId,
+            status: 'pending'
+        })
+            .populate('requester', 'username avatar gender age')
+            .sort({ createdAt: -1 });
+
+        res.json({
+            success: true,
+            data: { requests: requests.map(r => r.toObject()) }
+        });
+    } catch (error) {
+        console.error('Get connection requests error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error fetching requests',
+            error: error.message
+        });
+    }
+};
+
+// Accept Connection Request (Broadcaster accepts a request)
+exports.acceptRequest = async (req, res) => {
+    try {
+        const { requestId } = req.params;
+
+        const request = await ConnectionRequest.findById(requestId)
+            .populate('poolId');
+
+        if (!request || request.status !== 'pending') {
+            return res.status(404).json({
+                success: false,
+                message: 'Request not found or already processed'
+            });
+        }
+
+        const poolEntry = request.poolId;
+        if (!poolEntry) {
+            return res.status(404).json({
+                success: false,
+                message: 'Broadcast not found'
+            });
+        }
+
+        // Verify broadcaster owns this pool
+        if (poolEntry.sender.toString() !== req.userId) {
+            return res.status(403).json({
+                success: false,
+                message: 'Unauthorized - Only broadcaster can accept requests'
+            });
+        }
+
+        // Check if pool is still active
+        if (!poolEntry.isActive || poolEntry.expiresAt < new Date()) {
+            return res.status(400).json({
+                success: false,
+                message: 'Broadcast has expired'
+            });
+        }
+
+        // Deduct coins NOW (when accepting)
+        const broadcaster = await User.findById(req.userId);
+        const cost = poolEntry.reservedCoins || 0;
+
+        if (broadcaster.coins < cost) {
+            return res.status(400).json({
+                success: false,
+                message: 'Insufficient coins',
+                required: cost,
+                available: broadcaster.coins
+            });
+        }
+
+        // Deduct coins
+        await broadcaster.deductCoins(cost, 'Accepted connection request');
+
+        // Create chat
+        const expiryHours = await getAppSetting('limit.chat_expiry_hours', 24);
+        const chatExpiresAt = new Date(Date.now() + expiryHours * 60 * 60 * 1000);
+
+        const chat = new Chat({
+            type: 'private',
+            participants: [req.userId, request.requester],
+            isRandomChat: true,
+            expiresAt: chatExpiresAt
+        });
+
+        await chat.save();
+        await chat.populate('participants', 'username avatar gender age');
+
+        // Update request status
+        request.status = 'accepted';
+        await request.save();
+
+        // Reject other pending requests for this pool
+        await ConnectionRequest.updateMany(
+            {
+                poolId: poolEntry._id,
+                _id: { $ne: requestId },
+                status: 'pending'
+            },
+            { status: 'rejected' }
+        );
+
+        // Deactivate pool entry
+        poolEntry.isActive = false;
+        poolEntry.reservedCoins = 0;
+        await poolEntry.save();
+
+        // Notify requester via Socket.IO
+        const io = req.app.get('io');
+        if (io) {
+            const requesterSocketId = global.userSockets?.get(request.requester.toString());
+            if (requesterSocketId) {
+                io.to(requesterSocketId).emit('request:accepted', {
+                    request: request.toObject(),
+                    chat: chat.toObject()
+                });
+            }
+
+            // Notify broadcaster
+            const broadcasterSocketId = global.userSockets?.get(req.userId);
+            if (broadcasterSocketId) {
+                io.to(broadcasterSocketId).emit('request:accepted', {
+                    request: request.toObject(),
+                    chat: chat.toObject()
+                });
+            }
+        }
+
+        res.status(201).json({
+            success: true,
+            message: 'Request accepted, chat created',
+            data: { 
+                chat: chat.toObject(), 
+                request: request.toObject(),
+                balance: broadcaster.coins
+            }
+        });
+    } catch (error) {
+        console.error('Accept request error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error accepting request',
+            error: error.message
+        });
+    }
+};
+
+// Cancel Broadcast (Refund coins)
+exports.cancelBroadcast = async (req, res) => {
+    try {
+        const { poolId } = req.params;
+
+        const poolEntry = await MessagePool.findById(poolId);
+        if (!poolEntry) {
+            return res.status(404).json({
+                success: false,
+                message: 'Broadcast not found'
+            });
+        }
+
+        // Only broadcaster can cancel
+        if (poolEntry.sender.toString() !== req.userId) {
+            return res.status(403).json({
+                success: false,
+                message: 'Unauthorized - Only broadcaster can cancel'
+            });
+        }
+
+        // Coins were reserved, not deducted, so they're already available
+        // But we can add a small bonus for cancelling early (optional)
+        const reservedCoins = poolEntry.reservedCoins || 0;
+
+        // Deactivate pool
+        poolEntry.isActive = false;
+        poolEntry.reservedCoins = 0;
+        await poolEntry.save();
+
+        // Reject all pending requests
+        const rejectedCount = await ConnectionRequest.updateMany(
+            { poolId, status: 'pending' },
+            { status: 'rejected' }
+        );
+
+        // Notify requesters via Socket.IO
+        const io = req.app.get('io');
+        if (io) {
+            const requests = await ConnectionRequest.find({ poolId });
+            requests.forEach(req => {
+                const requesterSocketId = global.userSockets?.get(req.requester.toString());
+                if (requesterSocketId) {
+                    io.to(requesterSocketId).emit('broadcast:cancelled', {
+                        poolId: poolId.toString()
+                    });
+                }
+            });
+        }
+
+        res.json({
+            success: true,
+            message: 'Broadcast cancelled. Coins are available again.',
+            data: {
+                reservedCoins,
+                rejectedRequests: rejectedCount.modifiedCount
+            }
+        });
+    } catch (error) {
+        console.error('Cancel broadcast error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error cancelling broadcast',
             error: error.message
         });
     }
@@ -634,4 +1093,49 @@ exports.generateRandomData = async (req, res) => {
       error: error.message
     });
   }
+};
+
+// Clear Chat (Delete all messages)
+exports.clearChat = async (req, res) => {
+    try {
+        const { chatId } = req.params;
+
+        const chat = await Chat.findOne({
+            _id: chatId,
+            participants: req.userId
+        });
+
+        if (!chat) {
+            return res.status(404).json({
+                success: false,
+                message: 'Chat not found'
+            });
+        }
+
+        // Delete all messages in the chat
+        await Message.deleteMany({ chat: chatId });
+
+        // Clear lastMessage and unreadCount
+        chat.lastMessage = null;
+        chat.unreadCount.set(req.userId.toString(), 0);
+        await chat.save();
+
+        // Emit socket event
+        const io = req.app.get('io');
+        if (io) {
+            io.to(chatId).emit('chat:cleared', { chatId });
+        }
+
+        res.json({
+            success: true,
+            message: 'Chat cleared successfully'
+        });
+    } catch (error) {
+        console.error('Clear chat error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error clearing chat',
+            error: error.message
+        });
+    }
 };

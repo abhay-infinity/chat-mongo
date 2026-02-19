@@ -67,6 +67,22 @@ const messageSchema = new mongoose.Schema({
     deletedFor: [{
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User'
+    }],
+    reactions: [{
+        user: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User',
+            required: true
+        },
+        emoji: {
+            type: String,
+            required: true,
+            enum: ['👍', '❤️', '😂', '😮', '😢', '🙏']
+        },
+        createdAt: {
+            type: Date,
+            default: Date.now
+        }
     }]
 }, {
     timestamps: true

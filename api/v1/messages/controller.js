@@ -263,3 +263,105 @@ exports.markAsRead = async (req, res) => {
         });
     }
 };
+
+// Add Reaction to Message
+exports.addReaction = async (req, res) => {
+    try {
+        const { messageId } = req.params;
+        const { emoji } = req.body;
+
+        const validEmojis = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
+        if (!validEmojis.includes(emoji)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid emoji'
+            });
+        }
+
+        const message = await Message.findById(messageId);
+        if (!message) {
+            return res.status(404).json({
+                success: false,
+                message: 'Message not found'
+            });
+        }
+
+        // Remove existing reaction from this user
+        message.reactions = message.reactions.filter(
+            r => r.user.toString() !== req.userId.toString()
+        );
+
+        // Add new reaction
+        message.reactions.push({
+            user: req.userId,
+            emoji: emoji
+        });
+
+        await message.save();
+        await message.populate('reactions.user', 'username avatar');
+
+        // Emit socket event
+        const io = req.app.get('io');
+        if (io) {
+            io.to(message.chat.toString()).emit('message:reaction', {
+                messageId: message._id,
+                reactions: message.reactions
+            });
+        }
+
+        res.json({
+            success: true,
+            data: { message }
+        });
+    } catch (error) {
+        console.error('Add reaction error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error adding reaction',
+            error: error.message
+        });
+    }
+};
+
+// Remove Reaction from Message
+exports.removeReaction = async (req, res) => {
+    try {
+        const { messageId } = req.params;
+
+        const message = await Message.findById(messageId);
+        if (!message) {
+            return res.status(404).json({
+                success: false,
+                message: 'Message not found'
+            });
+        }
+
+        message.reactions = message.reactions.filter(
+            r => r.user.toString() !== req.userId.toString()
+        );
+
+        await message.save();
+        await message.populate('reactions.user', 'username avatar');
+
+        // Emit socket event
+        const io = req.app.get('io');
+        if (io) {
+            io.to(message.chat.toString()).emit('message:reaction', {
+                messageId: message._id,
+                reactions: message.reactions
+            });
+        }
+
+        res.json({
+            success: true,
+            data: { message }
+        });
+    } catch (error) {
+        console.error('Remove reaction error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error removing reaction',
+            error: error.message
+        });
+    }
+};
