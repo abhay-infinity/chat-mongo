@@ -125,6 +125,10 @@ module.exports = (io) => {
             poolHandlers.handleAcceptRequest(socket, io, data, callback)
         );
 
+        socket.on('request:reject', (data, callback) =>
+            poolHandlers.handleRejectRequest(socket, io, data, callback)
+        );
+
         // ==================== USER OPERATIONS ====================
         socket.on('location:update', (data, callback) =>
             userHandlers.handleUpdateLocation(socket, data, callback)

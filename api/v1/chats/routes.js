@@ -14,6 +14,7 @@ router.post('/generate-random-data', auth, chatController.generateRandomData);
 router.post('/send-request/:poolId', auth, chatController.sendConnectionRequest);
 router.get('/requests/:poolId', auth, chatController.getConnectionRequests);
 router.post('/accept-request/:requestId', auth, chatController.acceptRequest);
+router.post('/reject-request/:requestId', auth, chatController.rejectRequest);
 router.delete('/cancel-broadcast/:poolId', auth, chatController.cancelBroadcast);
 
 // Parameterized routes

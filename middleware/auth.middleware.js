@@ -41,9 +41,9 @@ const auth = async (req, res, next) => {
         let user = await getCache(cacheKey);
 
         if (user) {
-            // Cache hit! Super fast response
+            // Cache hit! Super fast response (normalize _id to string for consistent comparison with DB ObjectIds)
             req.user = user;
-            req.userId = user._id;
+            req.userId = user._id != null ? String(user._id) : user._id;
             req.isGuest = user.isGuest || false;
             return next();
         }
@@ -61,9 +61,9 @@ const auth = async (req, res, next) => {
         // Cache user data for next request (24 hours)
         await setCache(cacheKey, user, 24 * 60 * 60);
 
-        // Attach user to request
+        // Attach user to request (normalize _id to string for consistent comparison with DB ObjectIds)
         req.user = user;
-        req.userId = user._id;
+        req.userId = user._id != null ? String(user._id) : user._id;
         req.isGuest = user.isGuest || false;
 
         next();
@@ -105,7 +105,7 @@ const optionalAuth = async (req, res, next) => {
 
         if (user) {
             req.user = user;
-            req.userId = user._id;
+            req.userId = user._id != null ? String(user._id) : user._id;
             req.isGuest = user.isGuest || false;
         }
     } catch (error) {

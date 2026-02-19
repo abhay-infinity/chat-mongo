@@ -336,10 +336,14 @@ exports.clearUnreadCount = async (req, res) => {
 // Initiate Send (Anonymous Request Pool)
 exports.initiateSend = async (req, res) => {
     try {
+        console.log('📤 [API] POST /initiate-send | User:', req.userId);
         const { message, preferences, location } = req.body;
+        console.log('📤 [API] Body:', { message, preferences, location: location ? 'provided' : 'missing' });
+        
         const user = await User.findById(req.userId);
 
         if (!user) {
+            console.log('❌ [API] User not found:', req.userId);
             return res.status(404).json({ success: false, message: 'User not found' });
         }
 
@@ -348,9 +352,11 @@ exports.initiateSend = async (req, res) => {
         if (preferences && (preferences.gender !== 'any' || preferences.ageRange !== 'any')) {
             cost += await getAppSetting('coin.age_filter_extra', 5);
         }
+        console.log('💰 [API] Calculated cost:', cost, '| User coins:', user.coins);
 
         // Check coins
         if (user.coins < cost) {
+            console.log('❌ [API] Insufficient coins:', { required: cost, available: user.coins });
             return res.status(400).json({
                 success: false,
                 message: 'Insufficient coins',
@@ -406,11 +412,14 @@ exports.initiateSend = async (req, res) => {
                 await potentialMatch.save();
 
                 await chat.populate('participants', 'username avatar gender age');
+                
+                console.log('✅ [API] Auto-matched! Chat created:', chat._id);
+                console.log('📥 [API] Response: auto-matched, chat created');
 
                 return res.status(201).json({
                     success: true,
                     message: 'Auto-Matched with a sender immediately!',
-                    data: { chat, balance: user.coins, isMatched: true }
+                    data: { chat: chat.toObject(), balance: user.coins, isMatched: true }
                 });
             }
         }
@@ -431,19 +440,26 @@ exports.initiateSend = async (req, res) => {
         });
 
         await poolEntry.save();
+        await poolEntry.populate('sender', 'username avatar gender age');
+        const poolEntryObj = poolEntry.toObject();
+        const io = req.app.get('io');
+        if (io) io.emit('pool:new', { poolEntry: poolEntryObj });
+
+        console.log('✅ [API] Pool entry created:', poolEntry._id);
+        console.log('📥 [API] Response: poolEntry created, reservedCoins:', cost);
 
         res.status(201).json({
             success: true,
             message: 'Broadcast created. Waiting for connection requests.',
             data: { 
-                poolEntry, 
+                poolEntry: poolEntryObj, 
                 balance: user.coins, 
                 reservedCoins: cost,
                 isMatched: false 
             }
         });
     } catch (error) {
-        console.error('Initiate send error:', error);
+        console.error('❌ [API] Initiate send error:', error);
         res.status(500).json({
             success: false,
             message: 'Error initiating send',
@@ -455,7 +471,9 @@ exports.initiateSend = async (req, res) => {
 // Get Active Pool (For Map View)
 exports.getActivePool = async (req, res) => {
     try {
+        console.log('📤 [API] GET /pool | User:', req.userId);
         const { latitude, longitude, radius = 5000 } = req.query;
+        console.log('📤 [API] Query:', { latitude, longitude, radius });
 
         let query = {
             isActive: true,
@@ -510,6 +528,9 @@ exports.getActivePool = async (req, res) => {
             }
             return result;
         });
+
+        console.log('✅ [API] Found', entriesWithDistance.length, 'pool entries');
+        console.log('📥 [API] Response: pool entries list');
 
         res.json({
             success: true,
@@ -575,8 +596,11 @@ exports.acceptSend = async (req, res) => {
 // Send Connection Request (Receiver sends request to broadcaster)
 exports.sendConnectionRequest = async (req, res) => {
     try {
+        console.log('📤 [API] POST /send-request/:poolId | User:', req.userId);
         const { poolId } = req.params;
         const { message } = req.body;
+        console.log('📤 [API] Params:', { poolId });
+        console.log('📤 [API] Body:', { message: message || '(empty)' });
 
         const poolEntry = await MessagePool.findById(poolId);
         if (!poolEntry || !poolEntry.isActive || poolEntry.expiresAt < new Date()) {
@@ -619,16 +643,25 @@ exports.sendConnectionRequest = async (req, res) => {
 
         await request.save();
         await request.populate('requester', 'username avatar gender age');
+        
+        console.log('✅ [API] Connection request created:', request._id);
+        console.log('📥 [API] Response: request created');
 
         // Notify broadcaster via Socket.IO
         const io = req.app.get('io');
         if (io) {
             const broadcasterSocketId = global.userSockets?.get(poolEntry.sender.toString());
+            console.log('📡 [SOCKET] Emitting request:new to broadcaster:', broadcasterSocketId);
             if (broadcasterSocketId) {
                 io.to(broadcasterSocketId).emit('request:new', {
                     request: request.toObject()
                 });
+                console.log('✅ [SOCKET] request:new emitted to broadcaster');
+            } else {
+                console.log('⚠️ [SOCKET] Broadcaster not connected, cannot emit request:new');
             }
+        } else {
+            console.log('⚠️ [SOCKET] IO instance not available');
         }
 
         res.status(201).json({
@@ -649,7 +682,9 @@ exports.sendConnectionRequest = async (req, res) => {
 // Get Connection Requests (For broadcaster to see all requests)
 exports.getConnectionRequests = async (req, res) => {
     try {
+        console.log('📤 [API] GET /requests/:poolId | User:', req.userId);
         const { poolId } = req.params;
+        console.log('📤 [API] Params:', { poolId });
 
         const poolEntry = await MessagePool.findById(poolId);
         if (!poolEntry) {
@@ -659,8 +694,11 @@ exports.getConnectionRequests = async (req, res) => {
             });
         }
 
-        // Only broadcaster can see requests
-        if (poolEntry.sender.toString() !== req.userId) {
+        // Only broadcaster can see requests (normalize to string: req.userId may be string from cache or ObjectId from DB)
+        const senderId = String(poolEntry.sender);
+        const userId = String(req.userId);
+        if (senderId !== userId) {
+            console.log('📤 [API] 403 broadcaster mismatch | sender:', senderId, '| req.userId:', userId);
             return res.status(403).json({
                 success: false,
                 message: 'Unauthorized - Only broadcaster can view requests'
@@ -673,6 +711,9 @@ exports.getConnectionRequests = async (req, res) => {
         })
             .populate('requester', 'username avatar gender age')
             .sort({ createdAt: -1 });
+
+        console.log('✅ [API] Found', requests.length, 'connection requests');
+        console.log('📥 [API] Response: requests list');
 
         res.json({
             success: true,
@@ -691,7 +732,9 @@ exports.getConnectionRequests = async (req, res) => {
 // Accept Connection Request (Broadcaster accepts a request)
 exports.acceptRequest = async (req, res) => {
     try {
+        console.log('📤 [API] POST /accept-request/:requestId | User:', req.userId);
         const { requestId } = req.params;
+        console.log('📤 [API] Params:', { requestId });
 
         const request = await ConnectionRequest.findById(requestId)
             .populate('poolId');
@@ -711,8 +754,8 @@ exports.acceptRequest = async (req, res) => {
             });
         }
 
-        // Verify broadcaster owns this pool
-        if (poolEntry.sender.toString() !== req.userId) {
+        // Verify broadcaster owns this pool (normalize to string for cache/DB id type mismatch)
+        if (String(poolEntry.sender) !== String(req.userId)) {
             return res.status(403).json({
                 success: false,
                 message: 'Unauthorized - Only broadcaster can accept requests'
@@ -756,6 +799,9 @@ exports.acceptRequest = async (req, res) => {
 
         await chat.save();
         await chat.populate('participants', 'username avatar gender age');
+        
+        console.log('✅ [API] Chat created:', chat._id);
+        console.log('✅ [API] Participants:', chat.participants.map(p => p._id || p.username));
 
         // Update request status
         request.status = 'accepted';
@@ -775,27 +821,43 @@ exports.acceptRequest = async (req, res) => {
         poolEntry.isActive = false;
         poolEntry.reservedCoins = 0;
         await poolEntry.save();
-
-        // Notify requester via Socket.IO
         const io = req.app.get('io');
+        if (io) io.emit('pool:removed', { poolId: poolEntry._id.toString() });
+
+        // Notify requester and broadcaster via Socket.IO
         if (io) {
             const requesterSocketId = global.userSockets?.get(request.requester.toString());
+            const broadcasterSocketId = global.userSockets?.get(req.userId);
+            
+            console.log('📡 [SOCKET] Emitting request:accepted');
+            console.log('📡 [SOCKET] Requester socket:', requesterSocketId);
+            console.log('📡 [SOCKET] Broadcaster socket:', broadcasterSocketId);
+            
             if (requesterSocketId) {
                 io.to(requesterSocketId).emit('request:accepted', {
                     request: request.toObject(),
                     chat: chat.toObject()
                 });
+                console.log('✅ [SOCKET] request:accepted emitted to requester');
+            } else {
+                console.log('⚠️ [SOCKET] Requester not connected');
             }
 
-            // Notify broadcaster
-            const broadcasterSocketId = global.userSockets?.get(req.userId);
             if (broadcasterSocketId) {
                 io.to(broadcasterSocketId).emit('request:accepted', {
                     request: request.toObject(),
                     chat: chat.toObject()
                 });
+                console.log('✅ [SOCKET] request:accepted emitted to broadcaster');
+            } else {
+                console.log('⚠️ [SOCKET] Broadcaster not connected');
             }
+        } else {
+            console.log('⚠️ [SOCKET] IO instance not available');
         }
+
+        console.log('📥 [API] Response: request accepted, chat created');
+        console.log('💰 [API] Broadcaster balance:', broadcaster.coins);
 
         res.status(201).json({
             success: true,
@@ -816,6 +878,56 @@ exports.acceptRequest = async (req, res) => {
     }
 };
 
+// Reject Connection Request (Broadcaster rejects a single request)
+exports.rejectRequest = async (req, res) => {
+    try {
+        const { requestId } = req.params;
+
+        const request = await ConnectionRequest.findById(requestId).populate('poolId');
+        if (!request || request.status !== 'pending') {
+            return res.status(404).json({
+                success: false,
+                message: 'Request not found or already processed'
+            });
+        }
+
+        const poolEntry = request.poolId;
+        if (!poolEntry || String(poolEntry.sender) !== String(req.userId)) {
+            return res.status(403).json({
+                success: false,
+                message: 'Unauthorized - Only broadcaster can reject requests for their pool'
+            });
+        }
+
+        request.status = 'rejected';
+        await request.save();
+
+        const io = req.app.get('io');
+        if (io) {
+            const requesterSocketId = global.userSockets?.get(request.requester.toString());
+            if (requesterSocketId) {
+                io.to(requesterSocketId).emit('request:rejected', {
+                    requestId: request._id.toString(),
+                    poolId: poolEntry._id.toString()
+                });
+            }
+        }
+
+        return res.json({
+            success: true,
+            message: 'Request rejected',
+            data: { request: request.toObject() }
+        });
+    } catch (error) {
+        console.error('Reject request error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error rejecting request',
+            error: error.message
+        });
+    }
+};
+
 // Cancel Broadcast (Refund coins)
 exports.cancelBroadcast = async (req, res) => {
     try {
@@ -829,8 +941,8 @@ exports.cancelBroadcast = async (req, res) => {
             });
         }
 
-        // Only broadcaster can cancel
-        if (poolEntry.sender.toString() !== req.userId) {
+        // Only broadcaster can cancel (normalize to string for cache/DB id type mismatch)
+        if (String(poolEntry.sender) !== String(req.userId)) {
             return res.status(403).json({
                 success: false,
                 message: 'Unauthorized - Only broadcaster can cancel'
@@ -852,12 +964,13 @@ exports.cancelBroadcast = async (req, res) => {
             { status: 'rejected' }
         );
 
-        // Notify requesters via Socket.IO
+        // Notify requesters via Socket.IO and broadcast pool:removed for real-time radar/signals
         const io = req.app.get('io');
         if (io) {
+            io.emit('pool:removed', { poolId: poolId.toString() });
             const requests = await ConnectionRequest.find({ poolId });
-            requests.forEach(req => {
-                const requesterSocketId = global.userSockets?.get(req.requester.toString());
+            requests.forEach(r => {
+                const requesterSocketId = global.userSockets?.get(r.requester.toString());
                 if (requesterSocketId) {
                     io.to(requesterSocketId).emit('broadcast:cancelled', {
                         poolId: poolId.toString()

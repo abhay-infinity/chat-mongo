@@ -116,11 +116,14 @@ const handleInitiateSend = async (socket, io, data, callback) => {
         });
 
         await poolEntry.save();
+        await poolEntry.populate('sender', 'username avatar gender age');
+        const poolEntryObj = poolEntry.toObject();
+        io.emit('pool:new', { poolEntry: poolEntryObj });
 
         callback({
             success: true,
             message: 'Request added to global pool',
-            data: { poolEntry: poolEntry.toObject(), balance: user.coins, isMatched: false }
+            data: { poolEntry: poolEntryObj, balance: user.coins, isMatched: false }
         });
     } catch (error) {
         console.error('Initiate send error:', error);
@@ -128,34 +131,68 @@ const handleInitiateSend = async (socket, io, data, callback) => {
     }
 };
 
-// Get active pool with caching
+// Get active pool; optional location for nearest-to-farthest sort
 const handleGetActivePool = async (socket, data, callback) => {
     try {
-        const cacheKey = `pool:active:user:${socket.userId}`;
+        const { latitude, longitude, radius = 50000 } = data || {};
+        const hasLocation = latitude != null && longitude != null && !isNaN(Number(latitude)) && !isNaN(Number(longitude));
+        const maxDistance = Math.min(Number(radius) || 50000, 100000);
 
-        // Check cache
-        let cachedPool = await getCache(cacheKey);
+        let poolEntries;
 
-        if (cachedPool) {
-            console.log(`✅ Cache hit for pool:getActive`);
-            return callback({
-                success: true,
-                data: { poolEntries: cachedPool },
-                cached: true
+        if (hasLocation) {
+            const lng = parseFloat(longitude);
+            const lat = parseFloat(latitude);
+            poolEntries = await MessagePool.find({
+                isActive: true,
+                expiresAt: { $gt: new Date() },
+                sender: { $ne: socket.userId },
+                location: {
+                    $near: {
+                        $geometry: {
+                            type: 'Point',
+                            coordinates: [lng, lat]
+                        },
+                        $maxDistance: maxDistance
+                    }
+                }
+            })
+                .populate('sender', 'username avatar gender age')
+                .lean();
+
+            const R = 6371000;
+            poolEntries = poolEntries.map((entry) => {
+                const result = { ...entry };
+                if (entry.location && entry.location.coordinates) {
+                    const [entryLng, entryLat] = entry.location.coordinates;
+                    const dLat = (entryLat - lat) * Math.PI / 180;
+                    const dLon = (entryLng - lng) * Math.PI / 180;
+                    const a = Math.sin(dLat / 2) ** 2 +
+                        Math.cos(lat * Math.PI / 180) * Math.cos(entryLat * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+                    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+                    result.distance = Math.round(R * c);
+                }
+                return result;
             });
+        } else {
+            const cacheKey = `pool:active:user:${socket.userId}`;
+            let cachedPool = await getCache(cacheKey);
+            if (cachedPool) {
+                return callback({
+                    success: true,
+                    data: { poolEntries: cachedPool },
+                    cached: true
+                });
+            }
+            poolEntries = await MessagePool.find({
+                isActive: true,
+                expiresAt: { $gt: new Date() },
+                sender: { $ne: socket.userId }
+            })
+                .populate('sender', 'username avatar gender age')
+                .lean();
+            await setCache(cacheKey, poolEntries, 30);
         }
-
-        // Fetch from database
-        const poolEntries = await MessagePool.find({
-            isActive: true,
-            expiresAt: { $gt: new Date() },
-            sender: { $ne: socket.userId }
-        })
-            .populate('sender', 'username avatar gender age')
-            .lean();
-
-        // Cache for 30 seconds (pool changes frequently)
-        await setCache(cacheKey, poolEntries, 30);
 
         callback({
             success: true,
@@ -190,6 +227,7 @@ const handleAcceptSend = async (socket, io, data, callback) => {
         await chat.save();
         poolEntry.isActive = false;
         await poolEntry.save();
+        io.emit('pool:removed', { poolId: poolEntry._id.toString() });
 
         await chat.populate('participants', 'username avatar gender age');
 
@@ -281,14 +319,18 @@ const handleExtendChat = async (socket, io, data, callback) => {
 // Send Connection Request (via Socket.IO)
 const handleSendConnectionRequest = async (socket, io, data, callback) => {
     try {
+        console.log('📤 [SOCKET] request:send | User:', socket.userId);
         const { poolId, message } = data;
+        console.log('📤 [SOCKET] Data:', { poolId, message: message || '(empty)' });
 
         const poolEntry = await MessagePool.findById(poolId);
         if (!poolEntry || !poolEntry.isActive || poolEntry.expiresAt < new Date()) {
+            console.log('❌ [SOCKET] Pool entry not found or expired');
             return callback({ success: false, message: 'Broadcast no longer available' });
         }
 
         if (poolEntry.sender.toString() === socket.userId) {
+            console.log('❌ [SOCKET] Cannot send request to own broadcast');
             return callback({ success: false, message: 'Cannot send request to your own broadcast' });
         }
 
@@ -299,6 +341,7 @@ const handleSendConnectionRequest = async (socket, io, data, callback) => {
         });
 
         if (existingRequest) {
+            console.log('❌ [SOCKET] Request already exists');
             return callback({ success: false, message: 'Request already sent' });
         }
 
@@ -312,13 +355,19 @@ const handleSendConnectionRequest = async (socket, io, data, callback) => {
 
         await request.save();
         await request.populate('requester', 'username avatar gender age');
+        
+        console.log('✅ [SOCKET] Connection request created:', request._id);
 
         // Notify broadcaster
         const broadcasterSocketId = global.userSockets?.get(poolEntry.sender.toString());
+        console.log('📡 [SOCKET] Emitting request:new to broadcaster:', broadcasterSocketId);
         if (broadcasterSocketId) {
             io.to(broadcasterSocketId).emit('request:new', {
                 request: request.toObject()
             });
+            console.log('✅ [SOCKET] request:new emitted');
+        } else {
+            console.log('⚠️ [SOCKET] Broadcaster not connected');
         }
 
         callback({
@@ -327,7 +376,7 @@ const handleSendConnectionRequest = async (socket, io, data, callback) => {
             data: { request: request.toObject() }
         });
     } catch (error) {
-        console.error('Send connection request error:', error);
+        console.error('❌ [SOCKET] Send connection request error:', error);
         callback({ success: false, message: 'Error sending request', error: error.message });
     }
 };
@@ -335,10 +384,13 @@ const handleSendConnectionRequest = async (socket, io, data, callback) => {
 // Get Connection Requests (via Socket.IO)
 const handleGetConnectionRequests = async (socket, data, callback) => {
     try {
+        console.log('📤 [SOCKET] requests:get | User:', socket.userId);
         const { poolId } = data;
+        console.log('📤 [SOCKET] Data:', { poolId });
 
         const poolEntry = await MessagePool.findById(poolId);
         if (!poolEntry || poolEntry.sender.toString() !== socket.userId) {
+            console.log('❌ [SOCKET] Unauthorized');
             return callback({ success: false, message: 'Unauthorized' });
         }
 
@@ -350,12 +402,14 @@ const handleGetConnectionRequests = async (socket, data, callback) => {
             .sort({ createdAt: -1 })
             .lean();
 
+        console.log('✅ [SOCKET] Found', requests.length, 'requests');
+
         callback({
             success: true,
             data: { requests }
         });
     } catch (error) {
-        console.error('Get connection requests error:', error);
+        console.error('❌ [SOCKET] Get connection requests error:', error);
         callback({ success: false, message: 'Error fetching requests', error: error.message });
     }
 };
@@ -363,26 +417,33 @@ const handleGetConnectionRequests = async (socket, data, callback) => {
 // Accept Connection Request (via Socket.IO)
 const handleAcceptRequest = async (socket, io, data, callback) => {
     try {
+        console.log('📤 [SOCKET] request:accept | User:', socket.userId);
         const { requestId } = data;
+        console.log('📤 [SOCKET] Data:', { requestId });
 
         const request = await ConnectionRequest.findById(requestId).populate('poolId');
         if (!request || request.status !== 'pending') {
+            console.log('❌ [SOCKET] Request not found or already processed');
             return callback({ success: false, message: 'Request not found or already processed' });
         }
 
         const poolEntry = request.poolId;
         if (poolEntry.sender.toString() !== socket.userId) {
+            console.log('❌ [SOCKET] Unauthorized - not the broadcaster');
             return callback({ success: false, message: 'Unauthorized' });
         }
 
         if (!poolEntry.isActive || poolEntry.expiresAt < new Date()) {
+            console.log('❌ [SOCKET] Broadcast expired');
             return callback({ success: false, message: 'Broadcast has expired' });
         }
 
         const broadcaster = await User.findById(socket.userId);
         const cost = poolEntry.reservedCoins || 0;
+        console.log('💰 [SOCKET] Cost:', cost, '| Balance:', broadcaster.coins);
 
         if (broadcaster.coins < cost) {
+            console.log('❌ [SOCKET] Insufficient coins');
             return callback({
                 success: false,
                 message: 'Insufficient coins',
@@ -405,6 +466,8 @@ const handleAcceptRequest = async (socket, io, data, callback) => {
 
         await chat.save();
         await chat.populate('participants', 'username avatar gender age');
+        
+        console.log('✅ [SOCKET] Chat created:', chat._id);
 
         request.status = 'accepted';
         await request.save();
@@ -424,11 +487,18 @@ const handleAcceptRequest = async (socket, io, data, callback) => {
 
         // Notify requester
         const requesterSocketId = global.userSockets?.get(request.requester.toString());
+        console.log('📡 [SOCKET] Emitting request:accepted');
+        console.log('📡 [SOCKET] Requester socket:', requesterSocketId);
+        console.log('📡 [SOCKET] Broadcaster socket:', socket.id);
+        
         if (requesterSocketId) {
             io.to(requesterSocketId).emit('request:accepted', {
                 request: request.toObject(),
                 chat: chat.toObject()
             });
+            console.log('✅ [SOCKET] request:accepted emitted to requester');
+        } else {
+            console.log('⚠️ [SOCKET] Requester not connected');
         }
 
         // Notify broadcaster
@@ -436,6 +506,7 @@ const handleAcceptRequest = async (socket, io, data, callback) => {
             request: request.toObject(),
             chat: chat.toObject()
         });
+        console.log('✅ [SOCKET] request:accepted emitted to broadcaster');
 
         callback({
             success: true,
@@ -447,8 +518,45 @@ const handleAcceptRequest = async (socket, io, data, callback) => {
             }
         });
     } catch (error) {
-        console.error('Accept request error:', error);
+        console.error('❌ [SOCKET] Accept request error:', error);
         callback({ success: false, message: 'Error accepting request', error: error.message });
+    }
+};
+
+// Reject Connection Request (via Socket.IO)
+const handleRejectRequest = async (socket, io, data, callback) => {
+    try {
+        const { requestId } = data;
+
+        const request = await ConnectionRequest.findById(requestId).populate('poolId');
+        if (!request || request.status !== 'pending') {
+            return callback({ success: false, message: 'Request not found or already processed' });
+        }
+
+        const poolEntry = request.poolId;
+        if (!poolEntry || poolEntry.sender.toString() !== socket.userId) {
+            return callback({ success: false, message: 'Unauthorized' });
+        }
+
+        request.status = 'rejected';
+        await request.save();
+
+        const requesterSocketId = global.userSockets?.get(request.requester.toString());
+        if (requesterSocketId) {
+            io.to(requesterSocketId).emit('request:rejected', {
+                requestId: request._id.toString(),
+                poolId: poolEntry._id.toString()
+            });
+        }
+
+        callback({
+            success: true,
+            message: 'Request rejected',
+            data: { request: request.toObject() }
+        });
+    } catch (error) {
+        console.error('Reject request error:', error);
+        callback({ success: false, message: 'Error rejecting request', error: error.message });
     }
 };
 
@@ -459,5 +567,6 @@ module.exports = {
     handleExtendChat,
     handleSendConnectionRequest,
     handleGetConnectionRequests,
-    handleAcceptRequest
+    handleAcceptRequest,
+    handleRejectRequest
 };
